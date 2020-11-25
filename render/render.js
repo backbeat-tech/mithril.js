@@ -24,10 +24,23 @@ module.exports = function($window) {
 	//arguments without requiring a full array allocation to do so. It also
 	//takes advantage of the fact the current `vnode` is the first argument in
 	//all lifecycle methods.
-	function callHook(vnode) {
+
+	const deadVnodeParents = [];
+
+	function callHook(vnode, parent) {
 		var original = vnode.state
 		try {
 			return this.apply(original, arguments)
+		} catch (e) {
+			if(!deadVnodeParents.includes(parent)) {
+				console.error(e);
+				deadVnodeParents.push(parent);
+				parent.innerHTML = `
+					<div class="dead-component">
+						Sorry, something went wrong here.
+					</div>
+				`;
+			}
 		} finally {
 			checkState(vnode, original)
 		}
@@ -55,7 +68,7 @@ module.exports = function($window) {
 		var tag = vnode.tag
 		if (typeof tag === "string") {
 			vnode.state = {}
-			if (vnode.attrs != null) initLifecycle(vnode.attrs, vnode, hooks)
+			if (vnode.attrs != null) initLifecycle(vnode.attrs, vnode, hooks, parent)
 			switch (tag) {
 				case "#": createText(parent, vnode, nextSibling); break
 				case "<": createHTML(parent, vnode, ns, nextSibling); break
@@ -136,7 +149,7 @@ module.exports = function($window) {
 			}
 		}
 	}
-	function initComponent(vnode, hooks) {
+	function initComponent(vnode, hooks, parent) {
 		var sentinel
 		if (typeof vnode.tag.view === "function") {
 			vnode.state = Object.create(vnode.tag)
@@ -150,14 +163,14 @@ module.exports = function($window) {
 			sentinel.$$reentrantLock$$ = true
 			vnode.state = (vnode.tag.prototype != null && typeof vnode.tag.prototype.view === "function") ? new vnode.tag(vnode) : vnode.tag(vnode)
 		}
-		initLifecycle(vnode.state, vnode, hooks)
-		if (vnode.attrs != null) initLifecycle(vnode.attrs, vnode, hooks)
-		vnode.instance = Vnode.normalize(callHook.call(vnode.state.view, vnode))
+		initLifecycle(vnode.state, vnode, hooks, parent)
+		if (vnode.attrs != null) initLifecycle(vnode.attrs, vnode, hooks, parent)
+		vnode.instance = Vnode.normalize(callHook.call(vnode.state.view, vnode, parent))
 		if (vnode.instance === vnode) throw Error("A view cannot return the vnode it received as argument")
 		sentinel.$$reentrantLock$$ = null
 	}
 	function createComponent(parent, vnode, hooks, ns, nextSibling) {
-		initComponent(vnode, hooks)
+		initComponent(vnode, hooks, parent)
 		if (vnode.instance != null) {
 			createNode(parent, vnode.instance, hooks, ns, nextSibling)
 			vnode.dom = vnode.instance.dom
@@ -404,7 +417,7 @@ module.exports = function($window) {
 		if (oldTag === tag) {
 			vnode.state = old.state
 			vnode.events = old.events
-			if (shouldNotUpdate(vnode, old)) return
+			if (shouldNotUpdate(vnode, old, parent)) return
 			if (typeof oldTag === "string") {
 				if (vnode.attrs != null) {
 					updateLifecycle(vnode.attrs, vnode, hooks)
@@ -479,7 +492,7 @@ module.exports = function($window) {
 		}
 	}
 	function updateComponent(parent, old, vnode, hooks, nextSibling, ns) {
-		vnode.instance = Vnode.normalize(callHook.call(vnode.state.view, vnode))
+		vnode.instance = Vnode.normalize(callHook.call(vnode.state.view, vnode, parent))
 		if (vnode.instance === vnode) throw Error("A view cannot return the vnode it received as argument")
 		updateLifecycle(vnode.state, vnode, hooks)
 		if (vnode.attrs != null) updateLifecycle(vnode.attrs, vnode, hooks)
@@ -634,14 +647,14 @@ module.exports = function($window) {
 		var original = vnode.state
 		var stateResult, attrsResult
 		if (typeof vnode.tag !== "string" && typeof vnode.state.onbeforeremove === "function") {
-			var result = callHook.call(vnode.state.onbeforeremove, vnode)
+			var result = callHook.call(vnode.state.onbeforeremove, vnode, parent)
 			if (result != null && typeof result.then === "function") {
 				mask = 1
 				stateResult = result
 			}
 		}
 		if (vnode.attrs && typeof vnode.attrs.onbeforeremove === "function") {
-			var result = callHook.call(vnode.attrs.onbeforeremove, vnode)
+			var result = callHook.call(vnode.attrs.onbeforeremove, vnode, parent)
 			if (result != null && typeof result.then === "function") {
 				// eslint-disable-next-line no-bitwise
 				mask |= 2
@@ -709,8 +722,8 @@ module.exports = function($window) {
 		}
 	}
 	function onremove(vnode) {
-		if (typeof vnode.tag !== "string" && typeof vnode.state.onremove === "function") callHook.call(vnode.state.onremove, vnode)
-		if (vnode.attrs && typeof vnode.attrs.onremove === "function") callHook.call(vnode.attrs.onremove, vnode)
+		if (typeof vnode.tag !== "string" && typeof vnode.state.onremove === "function") callHook.call(vnode.state.onremove, vnode, parent)
+		if (vnode.attrs && typeof vnode.attrs.onremove === "function") callHook.call(vnode.attrs.onremove, vnode, parent)
 		if (typeof vnode.tag !== "string") {
 			if (vnode.instance != null) onremove(vnode.instance)
 		} else {
@@ -914,20 +927,20 @@ module.exports = function($window) {
 
 	//lifecycle
 	function initLifecycle(source, vnode, hooks) {
-		if (typeof source.oninit === "function") callHook.call(source.oninit, vnode)
-		if (typeof source.oncreate === "function") hooks.push(callHook.bind(source.oncreate, vnode))
+		if (typeof source.oninit === "function") callHook.call(source.oninit, vnode, parent)
+		if (typeof source.oncreate === "function") hooks.push(callHook.bind(source.oncreate, vnode, parent))
 	}
 	function updateLifecycle(source, vnode, hooks) {
-		if (typeof source.onupdate === "function") hooks.push(callHook.bind(source.onupdate, vnode))
+		if (typeof source.onupdate === "function") hooks.push(callHook.bind(source.onupdate, vnode, parent))
 	}
 	function shouldNotUpdate(vnode, old) {
 		do {
 			if (vnode.attrs != null && typeof vnode.attrs.onbeforeupdate === "function") {
-				var force = callHook.call(vnode.attrs.onbeforeupdate, vnode, old)
+				var force = callHook.call(vnode.attrs.onbeforeupdate, vnode, old, parent)
 				if (force !== undefined && !force) break
 			}
 			if (typeof vnode.tag !== "string" && typeof vnode.state.onbeforeupdate === "function") {
-				var force = callHook.call(vnode.state.onbeforeupdate, vnode, old)
+				var force = callHook.call(vnode.state.onbeforeupdate, vnode, old, parent)
 				if (force !== undefined && !force) break
 			}
 			return false
