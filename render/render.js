@@ -418,7 +418,7 @@ module.exports = function($window) {
 			if (shouldNotUpdate(vnode, old, parent)) return
 			if (typeof oldTag === "string") {
 				if (vnode.attrs != null) {
-					updateLifecycle(vnode.attrs, vnode, hooks)
+					updateLifecycle(vnode.attrs, vnode, hooks, parent)
 				}
 				switch (oldTag) {
 					case "#": updateText(old, vnode); break
@@ -492,8 +492,8 @@ module.exports = function($window) {
 	function updateComponent(parent, old, vnode, hooks, nextSibling, ns) {
 		vnode.instance = Vnode.normalize(callHook.call(vnode.state.view, vnode, parent))
 		if (vnode.instance === vnode) throw Error("A view cannot return the vnode it received as argument")
-		updateLifecycle(vnode.state, vnode, hooks)
-		if (vnode.attrs != null) updateLifecycle(vnode.attrs, vnode, hooks)
+		updateLifecycle(vnode.state, vnode, hooks, parent)
+		if (vnode.attrs != null) updateLifecycle(vnode.attrs, vnode, hooks, parent)
 		if (vnode.instance != null) {
 			if (old.instance == null) createNode(parent, vnode.instance, hooks, ns, nextSibling)
 			else updateNode(parent, old.instance, vnode.instance, hooks, nextSibling, ns)
@@ -663,7 +663,7 @@ module.exports = function($window) {
 
 		// If we can, try to fast-path it and avoid all the overhead of awaiting
 		if (!mask) {
-			onremove(vnode)
+			onremove(vnode, parent)
 			removeChild(parent, vnode)
 		} else {
 			if (stateResult != null) {
@@ -684,7 +684,7 @@ module.exports = function($window) {
 
 		function reallyRemove() {
 			checkState(vnode, original)
-			onremove(vnode)
+			onremove(vnode, parent)
 			removeChild(parent, vnode)
 		}
 	}
@@ -719,17 +719,17 @@ module.exports = function($window) {
 			break
 		}
 	}
-	function onremove(vnode) {
+	function onremove(vnode, parent) {
 		if (typeof vnode.tag !== "string" && typeof vnode.state.onremove === "function") callHook.call(vnode.state.onremove, vnode, parent)
 		if (vnode.attrs && typeof vnode.attrs.onremove === "function") callHook.call(vnode.attrs.onremove, vnode, parent)
 		if (typeof vnode.tag !== "string") {
-			if (vnode.instance != null) onremove(vnode.instance)
+			if (vnode.instance != null) onremove(vnode.instance, parent)
 		} else {
 			var children = vnode.children
 			if (Array.isArray(children)) {
 				for (var i = 0; i < children.length; i++) {
 					var child = children[i]
-					if (child != null) onremove(child)
+					if (child != null) onremove(child, parent)
 				}
 			}
 		}
@@ -924,14 +924,14 @@ module.exports = function($window) {
 	}
 
 	//lifecycle
-	function initLifecycle(source, vnode, hooks) {
+	function initLifecycle(source, vnode, hooks, parent) {
 		if (typeof source.oninit === "function") callHook.call(source.oninit, vnode, parent)
 		if (typeof source.oncreate === "function") hooks.push(callHook.bind(source.oncreate, vnode, parent))
 	}
-	function updateLifecycle(source, vnode, hooks) {
+	function updateLifecycle(source, vnode, hooks, parent) {
 		if (typeof source.onupdate === "function") hooks.push(callHook.bind(source.onupdate, vnode, parent))
 	}
-	function shouldNotUpdate(vnode, old) {
+	function shouldNotUpdate(vnode, old, parent) {
 		do {
 			if (vnode.attrs != null && typeof vnode.attrs.onbeforeupdate === "function") {
 				var force = callHook.call(vnode.attrs.onbeforeupdate, vnode, old, parent)
