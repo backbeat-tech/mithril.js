@@ -35,11 +35,9 @@ module.exports = function($window) {
 			if(!deadVnodeParents.includes(parent)) {
 				console.error(e);
 				deadVnodeParents.push(parent);
-				parent.innerHTML = `
-					<div class="dead-component">
-						Sorry, something went wrong here.
-					</div>
-				`;
+				var errorHTML = document.head.querySelector('meta[name=dead-component-html').content;
+				// Note: we're not using template literals because this file isn't run through webpack
+				parent.innerHTML = '<div class="dead-component">' + errorHTML + '</div>';
 			}
 		} finally {
 			checkState(vnode, original)
