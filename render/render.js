@@ -11,6 +11,11 @@ module.exports = function($window) {
 		math: "http://www.w3.org/1998/Math/MathML"
 	}
 
+	// Note: we're not using template literals because this file isn't run through webpack
+	var deadComponentHtml = '<div class="dead-component">'
+		+ document.head.querySelector('meta[name=dead-component-html').content;
+		+ '</div>';
+
 	function getNameSpace(vnode) {
 		return vnode.attrs && vnode.attrs.xmlns || nameSpace[vnode.tag]
 	}
@@ -35,9 +40,7 @@ module.exports = function($window) {
 			if(!deadVnodeParents.includes(parent)) {
 				console.error(e);
 				deadVnodeParents.push(parent);
-				var errorHTML = document.head.querySelector('meta[name=dead-component-html').content;
-				// Note: we're not using template literals because this file isn't run through webpack
-				parent.innerHTML = '<div class="dead-component">' + errorHTML + '</div>';
+				parent.innerHTML = deadComponentHtml;
 			}
 		} finally {
 			checkState(vnode, original)
@@ -159,7 +162,16 @@ module.exports = function($window) {
 			sentinel = vnode.tag
 			if (sentinel.$$reentrantLock$$ != null) return
 			sentinel.$$reentrantLock$$ = true
-			vnode.state = (vnode.tag.prototype != null && typeof vnode.tag.prototype.view === "function") ? new vnode.tag(vnode) : vnode.tag(vnode)
+			try {
+				vnode.state = (vnode.tag.prototype != null && typeof vnode.tag.prototype.view === "function") ? new vnode.tag(vnode) : vnode.tag(vnode)
+			} catch (e) {
+				console.error(e);
+				vnode.state = {
+					view: function() {
+						return Vnode('<', undefined, undefined, deadComponentHtml);
+					}
+				}
+			}
 		}
 		initLifecycle(vnode.state, vnode, hooks, parent)
 		if (vnode.attrs != null) initLifecycle(vnode.attrs, vnode, hooks, parent)
