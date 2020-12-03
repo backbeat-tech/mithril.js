@@ -490,7 +490,7 @@ module.exports = function($window) {
 		}
 	}
 	function updateComponent(parent, old, vnode, hooks, nextSibling, ns) {
-		vnode.instance = Vnode.normalize(callHook.call(vnode.state.view, vnode, parent))
+		if (vnode.state != null) vnode.instance = Vnode.normalize(callHook.call(vnode.state.view, vnode, parent))
 		if (vnode.instance === vnode) throw Error("A view cannot return the vnode it received as argument")
 		updateLifecycle(vnode.state, vnode, hooks, parent)
 		if (vnode.attrs != null) updateLifecycle(vnode.attrs, vnode, hooks, parent)
@@ -720,7 +720,7 @@ module.exports = function($window) {
 		}
 	}
 	function onremove(vnode, parent) {
-		if (typeof vnode.tag !== "string" && typeof vnode.state.onremove === "function") callHook.call(vnode.state.onremove, vnode, parent)
+		if (typeof vnode.tag !== "string" && vnode.state && typeof vnode.state.onremove === "function") callHook.call(vnode.state.onremove, vnode, parent)
 		if (vnode.attrs && typeof vnode.attrs.onremove === "function") callHook.call(vnode.attrs.onremove, vnode, parent)
 		if (typeof vnode.tag !== "string") {
 			if (vnode.instance != null) onremove(vnode.instance, parent)
@@ -929,7 +929,7 @@ module.exports = function($window) {
 		if (typeof source.oncreate === "function") hooks.push(callHook.bind(source.oncreate, vnode, parent))
 	}
 	function updateLifecycle(source, vnode, hooks, parent) {
-		if (typeof source.onupdate === "function") hooks.push(callHook.bind(source.onupdate, vnode, parent))
+		if (source && typeof source.onupdate === "function") hooks.push(callHook.bind(source.onupdate, vnode, parent))
 	}
 	function shouldNotUpdate(vnode, old, parent) {
 		do {
@@ -937,7 +937,7 @@ module.exports = function($window) {
 				var force = callHook.call(vnode.attrs.onbeforeupdate, vnode, old, parent)
 				if (force !== undefined && !force) break
 			}
-			if (typeof vnode.tag !== "string" && typeof vnode.state.onbeforeupdate === "function") {
+			if (typeof vnode.tag !== "string" && vnode.state && typeof vnode.state.onbeforeupdate === "function") {
 				var force = callHook.call(vnode.state.onbeforeupdate, vnode, old, parent)
 				if (force !== undefined && !force) break
 			}
