@@ -11,9 +11,10 @@ module.exports = function($window) {
 		math: "http://www.w3.org/1998/Math/MathML"
 	}
 
+	var deadComponentMeta = document.head.querySelector('meta[name=dead-component-html');
 	// Note: we're not using template literals because this file isn't run through webpack
 	var deadComponentHtml = '<div class="dead-component">'
-		+ document.head.querySelector('meta[name=dead-component-html').content;
+		+ (deadComponentMeta ? deadComponentMeta.content : '')
 		+ '</div>';
 
 	function getNameSpace(vnode) {
