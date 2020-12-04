@@ -30,13 +30,16 @@ module.exports = function($window) {
 	//takes advantage of the fact the current `vnode` is the first argument in
 	//all lifecycle methods.
 
-	const deadVnodeParents = [];
+	var deadVnodeParents = [];
 
 	function callHook(vnode, parent) {
 		var original = vnode.state
 		try {
 			return this.apply(original, arguments)
 		} catch (e) {
+			if (deadVnodeParents.length > 100) {
+				deadVnodeParents = [];
+			}
 			if(!deadVnodeParents.includes(parent)) {
 				console.error(e);
 				deadVnodeParents.push(parent);
